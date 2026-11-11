@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package ingest.v1;
+
+option java_multiple_files = true;
+option java_package = "io.github.swan28pande.ingest.proto";
+
+service IngestService {
+  // One batch of records for one source.
+  rpc Ingest(IngestRequest) returns (IngestResponse);
+  // Many batches over one stream; a single summary when the client half-closes.
+  rpc IngestStream(stream IngestRequest) returns (IngestResponse);
+}
+
+message IngestRequest {
+  string source = 1;            // a source name from the config
+  repeated string records = 2;  // each a JSON object
+}
+
+message IngestResponse {
+  int64 accepted = 1;           // published to Kafka
+  int64 duplicates = 2;         // dropped by deduplication
+  int64 invalid = 3;            // failed schema validation (sent to the DLQ topic if configured)
+  repeated RecordError errors = 4;
+}
+
+message RecordError {
+  int64 index = 1;              // position in the request (or across the stream)
+  string message = 2;
+}

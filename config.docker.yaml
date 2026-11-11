@@ -1,0 +1,37 @@
+ports:
+  http: 8080
+  grpc: 9090
+  metrics: 9100
+
+kafka:
+  bootstrapServers: kafka:9092
+  properties: {}          # any Kafka producer setting, e.g. compression.type: zstd
+
+dedup:
+  ttlSeconds: 600         # records with the same key within this window are dropped
+  maxEntries: 1000000
+
+sources:
+  - name: orders
+    topic: orders.v1
+    dlqTopic: orders.dlq  # invalid records land here with the validation errors
+    keyField: order_id    # Kafka message key (keeps an order's events in one partition)
+    dedupFields: [order_id, status]
+    transports: [http, grpc]
+    schema:
+      order_id:    {type: string,  required: true}
+      customer_id: {type: string,  required: true}
+      amount:      {type: number,  required: true}
+      currency:    {type: string,  required: true, allowed: [USD, EUR, GBP, INR]}
+      status:      {type: string,  required: true, allowed: [created, paid, shipped, cancelled]}
+      items:       {type: array}
+
+  - name: clickstream
+    topic: clicks.v1
+    transports: [grpc]    # high-volume: streaming gRPC only
+    allowUnknownFields: true
+    # no dedupFields: identical records (all fields, any key order) count as duplicates
+    schema:
+      user_id:  {type: string,  required: true}
+      url:      {type: string,  required: true}
+      ts_ms:    {type: integer, required: true}
